@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Manage L2TP/IPsec users (/etc/ppp/chap-secrets). Changes apply immediately.
+# Usage: l2tp-user add <user> '<password>' | passwd <user> '<password>' | del <user> | list
+set -euo pipefail
+F=/etc/ppp/chap-secrets
+[[ $(id -u) -eq 0 ]] || { echo "run as root (sudo)"; exit 1; }
+valid()  { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "invalid username: use A-Z a-z 0-9 . _ -"; exit 1; }; }
+pw_ok()  { [[ -n "$1" && "$1" != *'"'* && "$1" != *'\'* && "$1" != *' '* ]] || { echo "password must not be empty or contain quotes, backslash or spaces"; exit 1; }; }
+exists() { grep -qE "^\"?$1\"?[[:space:]]+l2tpd[[:space:]]" "$F"; }
+case "${1:-}" in
+  add)    valid "${2:-}"; pw_ok "${3:-}"; exists "$2" && { echo "user $2 already exists"; exit 1; }
+          cp -a "$F" "$F.bak"; printf '"%s"\tl2tpd\t"%s"\t*\n' "$2" "$3" >> "$F"; echo "added $2" ;;
+  del)    valid "${2:-}"; exists "$2" || { echo "no such user $2"; exit 1; }
+          cp -a "$F" "$F.bak"; sed -i -E "/^\"?$2\"?[[:space:]]+l2tpd[[:space:]]/d" "$F"
+          echo "deleted $2 (an open session ends at its next reconnect)" ;;
+  passwd) valid "${2:-}"; pw_ok "${3:-}"; exists "$2" || { echo "no such user $2"; exit 1; }
+          "$0" del "$2" >/dev/null; "$0" add "$2" "$3" >/dev/null; echo "password changed for $2" ;;
+  list)   awk '!/^#/ && NF>=3 {gsub(/"/,"",$1); print $1}' "$F" ;;
+  *)      echo "usage: l2tp-user add <user> '<password>' | passwd <user> '<password>' | del <user> | list"; exit 1 ;;
+esac

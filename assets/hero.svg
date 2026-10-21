@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" width="900" height="260" role="img" aria-label="Alex Server">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#111a2e"/>
+    </linearGradient>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3ccf98"/>
+      <stop offset=".5" stop-color="#6ea0ff"/>
+      <stop offset="1" stop-color="#ad8bff"/>
+    </linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#1d2840" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="900" height="260" rx="18" fill="url(#bg)"/>
+  <rect width="900" height="260" rx="18" fill="url(#grid)" opacity=".7"/>
+
+  <!-- route: users -> iran -> egress -> internet -->
+  <g fill="none" stroke-width="2.5" stroke-linecap="round">
+    <path d="M560 70 C620 70 630 130 690 130" stroke="#3ccf98" opacity=".9"/>
+    <path d="M560 130 L690 130" stroke="#f0a24a" opacity=".9"/>
+    <path d="M560 190 C620 190 630 130 690 130" stroke="#6ea0ff" opacity=".9"/>
+    <path d="M730 130 L840 130" stroke="#ad8bff" stroke-dasharray="6 6">
+      <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1.2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#9aa4b1">
+    <circle cx="552" cy="70" r="7" fill="#3ccf98"/><text x="538" y="74" text-anchor="end">VLESS</text>
+    <circle cx="552" cy="130" r="7" fill="#f0a24a"/><text x="538" y="134" text-anchor="end">L2TP</text>
+    <circle cx="552" cy="190" r="7" fill="#6ea0ff"/><text x="538" y="194" text-anchor="end">WireGuard</text>
+    <circle cx="710" cy="130" r="20" fill="#16213a" stroke="#6ea0ff" stroke-width="2"/>
+    <circle cx="710" cy="130" r="20" fill="none" stroke="#6ea0ff" stroke-width="2" opacity=".6">
+      <animate attributeName="r" values="20;34;20" dur="2.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".6;0;.6" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
+    <text x="710" y="170" text-anchor="middle">server</text>
+    <circle cx="852" cy="130" r="9" fill="#ad8bff"/>
+    <text x="852" y="160" text-anchor="middle">egress</text>
+  </g>
+
+  <text x="48" y="112" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="54" font-weight="800" fill="url(#t)" letter-spacing="2">ALEX SERVER</text>
+  <text x="50" y="148" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="17" fill="#e6e9ed">VLESS + Reality · L2TP/IPsec · WireGuard</text>
+  <text x="50" y="176" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#9aa4b1">3x-ui accounting · fail-closed egress · one-command install</text>
+  <rect x="50" y="198" width="168" height="26" rx="13" fill="#14321f" stroke="#3ccf98"/>
+  <text x="134" y="215" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#3ccf98">UBUNTU 24.04 · AMD64/ARM64</text>
+</svg>

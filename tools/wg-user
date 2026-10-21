@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Manage WireGuard users of wg-clients. Changes apply immediately.
+# Usage: wg-user add <name> | show <name> | del <name> | list
+set -euo pipefail
+[[ $(id -u) -eq 0 ]] || { echo "run as root (sudo)"; exit 1; }
+set -a; . /etc/alex-server/.env; set +a
+WG_NET=${WG_NET:-10.203.61}; WG_PORT=${WG_PORT:-51820}
+ADDR=${SHARE_ADDR:-$DOMAIN}; DNS=${CLIENT_DNS:-1.1.1.1}
+CONF=/etc/wireguard/wg-clients.conf
+DIR=/etc/alex-server/wg-clients
+valid() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "invalid name: use A-Z a-z 0-9 . _ -"; exit 1; }; }
+has()   { grep -q "^# name=$1\$" "$CONF"; }
+sync()  { wg syncconf wg-clients <(wg-quick strip wg-clients); }
+
+case "${1:-}" in
+  add)
+    valid "${2:-}"; has "$2" && { echo "user $2 already exists"; exit 1; }
+    used=$(grep -oE "AllowedIPs = $WG_NET\.[0-9]+" "$CONF" | awk -F. '{print $4}' | sort -n | tail -1)
+    n=$(( ${used:-9} + 1 )); (( n <= 254 )) || { echo "no free addresses"; exit 1; }
+    priv=$(wg genkey); pub=$(wg pubkey <<<"$priv")
+    printf '[Peer]\n# name=%s\nPublicKey = %s\nAllowedIPs = %s.%s/32\n\n' "$2" "$pub" "$WG_NET" "$n" >> "$CONF"
+    umask 077
+    cat > "$DIR/$2.conf" <<EOF
+[Interface]
+PrivateKey = $priv
+Address = $WG_NET.$n/32
+DNS = $DNS
+MTU = 1380
+
+[Peer]
+PublicKey = $(wg pubkey < /etc/alex-server/wg-clients.key)
+Endpoint = $ADDR:$WG_PORT
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
+EOF
+    sync
+    echo "added $2 ($WG_NET.$n) — config: $DIR/$2.conf"
+    qrencode -t ansiutf8 < "$DIR/$2.conf" ;;
+  show)
+    valid "${2:-}"; [[ -f "$DIR/$2.conf" ]] || { echo "no such user $2"; exit 1; }
+    cat "$DIR/$2.conf"; qrencode -t ansiutf8 < "$DIR/$2.conf" ;;
+  del)
+    valid "${2:-}"; has "$2" || { echo "no such user $2"; exit 1; }
+    cp -a "$CONF" "$CONF.bak"
+    awk -v RS= -v ORS='\n\n' -v tag="# name=$2" 'index($0, tag "\n") == 0' "$CONF" > "$CONF.tmp"
+    install -m 600 "$CONF.tmp" "$CONF"; rm -f "$CONF.tmp" "$DIR/$2.conf"
+    sync; echo "deleted $2" ;;
+  list)
+    grep -E '^# name=|^AllowedIPs' "$CONF" | paste - - | sed -E 's/# name=//; s/AllowedIPs = //' ;;
+  *) echo "usage: wg-user add <name> | show <name> | del <name> | list"; exit 1 ;;
+esac

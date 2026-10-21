@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Policy routing for Alex Server. Idempotent; run at boot and on wg-out up.
+#  - WireGuard users, L2TP users and Xray traffic marked 0x200 -> table 200
+#  - table 200: default via wg-out when it is up, otherwise blackhole
+#    (so user traffic can never fall back to this server's own internet)
+set -euo pipefail
+set -a; . /etc/alex-server/.env; set +a
+WG_NET=${WG_NET:-10.203.61}
+L2TP_NET=${L2TP_NET:-10.203.62}
+SRC=${EGRESS_ADDRESS%/*}
+
+add_rule() { # priority, selector...
+  local prio=$1; shift
+  ip rule show priority "$prio" | grep -q . || ip rule add "$@" lookup 200 priority "$prio"
+}
+add_rule 180 from "$WG_NET.0/24"
+add_rule 181 from "$L2TP_NET.0/24"
+add_rule 200 fwmark 0x200
+
+ip route replace blackhole default metric 32760 table 200
+if ip link show wg-out >/dev/null 2>&1; then
+  ip route replace default dev wg-out src "$SRC" metric 10 table 200
+  sysctl -qw net.ipv4.conf.wg-out.rp_filter=2
+fi

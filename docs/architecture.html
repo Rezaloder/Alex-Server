@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alex Server Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--surface-2:#f0f2f5;--border:#d9dde3;--text:#1b1f24;--muted:#5d6672;
+  --vless:#047857;--l2tp:#b45309;--wg:#2563eb;--tunnel:#7c3aed;--danger:#c62828;--danger-soft:#fbe0e0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0f1216;--surface:#171b21;--surface-2:#1e232b;--border:#2c333d;--text:#e6e9ed;--muted:#9aa4b1;
+  --vless:#3ccf98;--l2tp:#f0a24a;--wg:#6ea0ff;--tunnel:#ad8bff;--danger:#ff6b6b;--danger-soft:#3d1a1a}}
+:root[data-theme="dark"]{--bg:#0f1216;--surface:#171b21;--surface-2:#1e232b;--border:#2c333d;--text:#e6e9ed;--muted:#9aa4b1;
+  --vless:#3ccf98;--l2tp:#f0a24a;--wg:#6ea0ff;--tunnel:#ad8bff;--danger:#ff6b6b;--danger-soft:#3d1a1a}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Vazirmatn,Tahoma,sans-serif;line-height:1.8;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:19px;margin:40px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:16px;margin:0 0 8px}.lead{color:var(--muted)}
+code{font-family:"JetBrains Mono",Consolas,monospace;font-size:.86em;direction:ltr;unicode-bidi:embed;background:var(--surface-2);padding:1px 6px;border-radius:5px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.diagram{overflow-x:auto}.diagram img{display:block;width:100%;min-width:760px;height:auto;border-radius:12px}
+.tbl{overflow-x:auto}table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);font-size:14px}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>معماری Alex Server</h1>
+<p class="lead">سه روش اتصال برای کاربران. همهٔ ترافیک فقط از یک تونل WireGuard به یک خروجی خارج از کشور می‌رود. اگر تونل قطع شود، کاربران اینترنت ندارند و هیچ ترافیکی از IP خود سرور بیرون نمی‌رود.</p>
+
+<h2>نقشهٔ اتصال‌ها</h2>
+<div class="card diagram"><img src="../assets/architecture.svg" alt="نمودار مسیر ترافیک"></div>
+
+<h2>هر کاربر چطور به اینترنت می‌رسد</h2>
+<div class="grid">
+<div class="card"><h3 style="color:var(--vless)">VLESS + Reality</h3><p>اپ به <code>SHARE_ADDR:443</code> وصل می‌شود. از بیرون، اتصال شبیه HTTPS به سایت هدف (مثلاً دیجی‌کالا) دیده می‌شود. Xray کاربر را با UUID شناسایی می‌کند و مصرفش را ثبت می‌کند. خروجی <code>egress</code> بسته‌ها را با mark <code>0x200</code> علامت می‌زند. بعد جدول 200، تونل <code>wg-out</code> و خروجی.</p></div>
+<div class="card"><h3 style="color:var(--l2tp)">L2TP/IPsec</h3><p>اتصال با IKEv1 و PSK روی UDP 500 و 4500 برقرار می‌شود. داخل IPsec یک نشست L2TP و PPP ساخته می‌شود و کاربر IP <code>10.203.62.x</code> می‌گیرد. قاعدهٔ <code>from 10.203.62.0/24 → table 200</code> ترافیک را به <code>wg-out</code> می‌فرستد، با masquerade فقط روی همین تونل.</p></div>
+<div class="card"><h3 style="color:var(--wg)">WireGuard</h3><p>کلاینت به UDP 51820 وصل می‌شود و IP <code>10.203.61.x</code> می‌گیرد. مسیرش مثل L2TP است. کاربران با <code>wg-user</code> ساخته می‌شوند و QR می‌گیرند.</p></div>
+</div>
+
+<h2>پورت‌ها و شبکه‌ها</h2>
+<div class="tbl"><table>
+<thead><tr><th>مورد</th><th>مقدار پیش‌فرض</th></tr></thead>
+<tbody>
+<tr><td>VLESS Reality</td><td><code>TCP 443</code></td></tr>
+<tr><td>پنل 3x-ui و سابسکریپشن</td><td><code>TCP 52667</code> و <code>TCP 2096</code> (HTTPS)</td></tr>
+<tr><td>L2TP/IPsec</td><td><code>UDP 500, 4500</code> · <code>1701</code> فقط داخل IPsec · <code>10.203.62.0/24</code></td></tr>
+<tr><td>WireGuard کاربران</td><td><code>UDP 51820</code> · <code>10.203.61.0/24</code></td></tr>
+<tr><td>تونل خروجی</td><td><code>wg-out</code> · <code>10.203.70.2/30</code> ↔ روتر خارجی <code>10.203.70.1</code></td></tr>
+<tr><td>Policy routing</td><td>mark <code>0x200</code> و subnetهای کاربران ← table <code>200</code> (default dev wg-out + blackhole)</td></tr>
+<tr><td>Let's Encrypt</td><td><code>TCP 80</code> فقط برای صدور و تمدید گواهی</td></tr>
+</tbody></table></div>
+
+<h2>اگر چیزی خراب شود</h2>
+<div class="tbl"><table>
+<thead><tr><th>خرابی</th><th>نتیجه برای کاربر</th><th>چه چیزی جلوی نشت را می‌گیرد</th></tr></thead>
+<tbody>
+<tr><td>تونل خروجی قطع</td><td>اینترنت ندارد</td><td>blackhole در table 200 + قاعدهٔ nft «mark ≠ wg-out → drop»</td></tr>
+<tr><td>Xray متوقف</td><td>کاربران VLESS قطع می‌شوند</td><td>هیچ مسیر جایگزینی وجود ندارد</td></tr>
+<tr><td>درخواست IPv6</td><td>drop</td><td>nft: IPv6 کاربران و IPv6 علامت‌دار drop می‌شود</td></tr>
+<tr><td>تلاش برای رسیدن به پنل از داخل VLESS</td><td>بسته می‌شود</td><td>routing Xray: آدرس‌های private و IP خود سرور ← block</td></tr>
+<tr><td>ریبوت</td><td>همه‌چیز برمی‌گردد</td><td><code>alex-routing.service</code>، nftables و wg-quick همه enable هستند</td></tr>
+</tbody></table></div>
+</div>
+</body>
+</html>

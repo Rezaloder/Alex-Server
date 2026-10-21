@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Health check for Alex Server (read-only).
+[[ $(id -u) -eq 0 ]] || { echo "run as root (sudo)"; exit 1; }
+ok()  { printf '  \e[32mOK\e[0m   %s\n' "$*"; }
+bad() { printf '  \e[31mFAIL\e[0m %s\n' "$*"; }
+chk() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
+
+echo "Services"
+for s in x-ui nftables alex-routing wg-quick@wg-out wg-quick@wg-clients strongswan-starter xl2tpd fail2ban; do
+  chk "$s" "systemctl is-active --quiet $s"
+done
+
+echo "Egress tunnel"
+hs=$(wg show wg-out latest-handshakes 2>/dev/null | awk '{print $2}')
+if [[ -n "$hs" && "$hs" != 0 ]] && (( $(date +%s) - hs < 180 )); then ok "wg-out handshake $(( $(date +%s) - hs ))s ago"; else bad "wg-out has no recent handshake"; fi
+chk "table 200 default -> wg-out"   "ip route show table 200 | grep -q 'dev wg-out'"
+chk "table 200 blackhole fallback"  "ip route show table 200 | grep -q blackhole"
+chk "marked traffic routes to wg-out" "ip route get 1.1.1.1 mark 0x200 | grep -q 'dev wg-out'"
+
+echo "Leak protection"
+chk "kill switch rule present"      "nft list chain inet alex_server output | grep -q 'kill switch'"
+chk "forward policy drop"           "nft list chain inet alex_server forward | grep -q 'policy drop'"
+chk "no NAT to the public interface" "! nft list chain inet alex_server postrouting | grep masquerade | grep -vq wg-out"
+
+echo "Capacity"
+printf '  conntrack %s / %s\n' "$(cat /proc/sys/net/netfilter/nf_conntrack_count)" "$(cat /proc/sys/net/netfilter/nf_conntrack_max)"
+free -m | awk '/Mem:/ {printf "  memory    %s MB used of %s MB\n", $3, $2}'
+
+echo "Versions"
+for x in /usr/local/x-ui/bin/xray-linux-amd64 /usr/local/x-ui/bin/xray-linux-arm64; do
+  [[ -x $x ]] && printf '  xray      %s\n' "$("$x" version 2>/dev/null | head -1 | awk '{print $2}')"
+done
+printf '  3x-ui     %s\n' "$(/usr/local/x-ui/x-ui -v 2>/dev/null)"
